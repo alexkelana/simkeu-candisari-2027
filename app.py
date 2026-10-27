@@ -110,21 +110,32 @@ def format_rupiah(n):
 def is_manager(peran: str) -> bool:
     return str(peran).upper() in ("ADMIN", "KASUBAG_PEK")
 
-def get_subkegiatan_label(subkode: str, df: pd.DataFrame) -> str:
-    """Label dropdown: kode subkegiatan - nama kegiatan."""
+def truncate(text: str, max_len: int = 45) -> str:
+    """Potong teks panjang agar cocok di layar kecil."""
+    text = str(text)
+    if len(text) <= max_len:
+        return text
+    return text[:max_len - 3] + "..."
+
+def get_subkegiatan_full(subkode: str, df: pd.DataFrame) -> str:
+    """Label lengkap: kode - nama."""
     if df.empty or subkode == "-":
         return subkode
     row = df[df["subkegiatan"] == subkode]
     if row.empty:
         return subkode
-    r = row.iloc[0]
-    nama = r.get("nama_kegiatan", "")
+    nama = row.iloc[0].get("nama_kegiatan", "")
     if nama:
         return f"{subkode} - {nama}"
     return str(subkode)
 
-def get_rekening_label(kode: str, df: pd.DataFrame) -> str:
-    """Tampilkan kode rekening + uraian."""
+def get_subkegiatan_short(subkode: str, df: pd.DataFrame) -> str:
+    """Label pendek untuk dropdown."""
+    full = get_subkegiatan_full(subkode, df)
+    return truncate(full, 50)
+
+def get_rekening_full(kode: str, df: pd.DataFrame) -> str:
+    """Label lengkap: kode — uraian."""
     if df.empty or kode == "-":
         return kode
     row = df[df["kode_rekening"] == kode]
@@ -134,6 +145,11 @@ def get_rekening_label(kode: str, df: pd.DataFrame) -> str:
     if uraian:
         return f"{kode} — {uraian}"
     return str(kode)
+
+def get_rekening_short(kode: str, df: pd.DataFrame) -> str:
+    """Label pendek untuk dropdown."""
+    full = get_rekening_full(kode, df)
+    return truncate(full, 50)
 
 # ===================== LOAD DATA =====================
 with st.spinner("Memuat data dari Google Sheets..."):
@@ -202,7 +218,6 @@ with st.sidebar:
 if menu == "Transaksi":
     st.header("Input Transaksi")
 
-    # Tampilkan konfirmasi dari simpan sebelumnya (jika ada)
     if "simpan_status" in st.session_state:
         status = st.session_state.pop("simpan_status")
         if status["success"]:
@@ -223,25 +238,30 @@ if menu == "Transaksi":
         sub_opts = df_kegiatan["subkegiatan"].dropna().tolist()
 
     with st.form("form_transaksi"):
-        col1, col2 = st.columns(2)
-        with col1:
-            tgl = st.date_input("Tanggal Pengajuan", value=date.today())
-            subkegiatan = st.selectbox(
-                "Sub Kegiatan",
-                options=sub_opts if sub_opts else ["-"],
-                format_func=lambda x: get_subkegiatan_label(x, df_kegiatan)
-            )
-            rekening = st.selectbox(
-                "Kode Rekening Belanja",
-                options=rekening_opts if rekening_opts else ["-"],
-                format_func=lambda x: get_rekening_label(x, df_rekening)
-            )
-            pengelompokan = st.text_input("Pengelompokan Belanja (#)")
-            jenis = st.selectbox("Jenis Transaksi", ["UP/GU", "LS"])
-        with col2:
-            nominal = st.number_input("Nominal (Rp)", min_value=0, step=1000)
-            uraian = st.text_area("Uraian", height=100)
-            bukti = st.text_input("Bukti Dukung SPJ (tautan / nomor)")
+        # Di layar kecil, form jadi 1 kolom otomatis
+        tgl = st.date_input("Tanggal Pengajuan", value=date.today())
+
+        subkegiatan = st.selectbox(
+            "Sub Kegiatan",
+            options=sub_opts if sub_opts else ["-"],
+            format_func=lambda x: get_subkegiatan_short(x, df_kegiatan)
+        )
+        if subkegiatan != "-":
+            st.caption(get_subkegiatan_full(subkegiatan, df_kegiatan))
+
+        rekening = st.selectbox(
+            "Kode Rekening Belanja",
+            options=rekening_opts if rekening_opts else ["-"],
+            format_func=lambda x: get_rekening_short(x, df_rekening)
+        )
+        if rekening != "-":
+            st.caption(get_rekening_full(rekening, df_rekening))
+
+        pengelompokan = st.text_input("Pengelompokan Belanja (#)")
+        jenis = st.selectbox("Jenis Transaksi", ["UP/GU", "LS"])
+        nominal = st.number_input("Nominal (Rp)", min_value=0, step=1000)
+        uraian = st.text_area("Uraian", height=100)
+        bukti = st.text_input("Bukti Dukung SPJ (tautan / nomor)")
 
         if st.form_submit_button("Simpan Transaksi", type="primary"):
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
@@ -249,7 +269,7 @@ if menu == "Transaksi":
             else:
                 pptk = f"{current_user.get('nama', '')} ({current_user.get('email', '')})"
                 new_data = {
-                    "SUB KEGIATAN": get_subkegiatan_label(subkegiatan, df_kegiatan),
+                    "SUB KEGIATAN": get_subkegiatan_full(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
                     "PENGELOMPOKAN BELANJA (#)": pengelompokan or "",
                     "URAIAN": uraian or "",
