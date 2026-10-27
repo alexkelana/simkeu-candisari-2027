@@ -202,6 +202,18 @@ with st.sidebar:
 if menu == "Transaksi":
     st.header("Input Transaksi")
 
+    # Tampilkan konfirmasi dari simpan sebelumnya (jika ada)
+    if "simpan_status" in st.session_state:
+        status = st.session_state.pop("simpan_status")
+        if status["success"]:
+            st.success(status["message"])
+            if status.get("telegram_ok"):
+                st.info("Notifikasi Telegram terkirim.")
+            else:
+                st.warning("Transaksi tersimpan, tapi notifikasi Telegram gagal.")
+        else:
+            st.error(status["message"])
+
     rekening_opts = []
     if not df_rekening.empty and "kode_rekening" in df_rekening.columns:
         rekening_opts = df_rekening["kode_rekening"].dropna().tolist()
@@ -249,8 +261,6 @@ if menu == "Transaksi":
                 }
                 success, result = append_transaksi(new_data)
                 if success:
-                    st.success(f"Transaksi berhasil disimpan ke Google Sheets. Nomor: {result}")
-
                     pesan = (
                         f"📌 <b>Transaksi Baru SIMKEU</b>\n"
                         f"No: {result}\n"
@@ -262,16 +272,20 @@ if menu == "Transaksi":
                         f"Tanggal: {new_data['TANGGAL PENGAJUAN']}\n"
                         f"Uraian: {uraian or '-'}"
                     )
-                    if send_telegram(pesan):
-                        st.info("Notifikasi Telegram terkirim.")
-                    else:
-                        st.warning("Transaksi tersimpan, tapi notifikasi Telegram gagal (cek bot_token & chat_id di Secrets).")
-
+                    telegram_ok = send_telegram(pesan)
+                    st.session_state.simpan_status = {
+                        "success": True,
+                        "message": f"✅ Transaksi berhasil disimpan. Nomor: {result}",
+                        "telegram_ok": telegram_ok
+                    }
                     st.cache_resource.clear()
                     st.rerun()
                 else:
-                    st.error(f"Gagal menyimpan: {result}")
-                    st.info("Pastikan service account punya akses Editor ke spreadsheet.")
+                    st.session_state.simpan_status = {
+                        "success": False,
+                        "message": f"❌ Gagal menyimpan: {result}"
+                    }
+                    st.rerun()
 
     st.divider()
     st.subheader("Daftar Transaksi")
