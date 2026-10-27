@@ -157,22 +157,34 @@ if menu == "Dashboard":
 elif menu == "Transaksi":
     st.header("Input Transaksi")
 
-    kegiatan_opts = []
-    if not df_kegiatan.empty and "kegiatan_id" in df_kegiatan.columns:
-        kegiatan_opts = df_kegiatan["kegiatan_id"].dropna().tolist()
-
     rekening_opts = []
     if not df_rekening.empty and "kode_rekening" in df_rekening.columns:
         rekening_opts = df_rekening["kode_rekening"].dropna().tolist()
+
+    # Cascading: pilih Kegiatan dulu, lalu Sub Kegiatan yang sesuai
+    kegiatan_list = []
+    if not df_kegiatan.empty and "kegiatan" in df_kegiatan.columns:
+        kegiatan_list = sorted(df_kegiatan["kegiatan"].dropna().unique().tolist())
+
+    selected_kegiatan = st.selectbox("Kegiatan", options=["-"] + kegiatan_list if kegiatan_list else ["-"])
+
+    # Filter sub kegiatan berdasarkan kegiatan yang dipilih
+    filtered_kegiatan = df_kegiatan
+    if selected_kegiatan != "-" and not df_kegiatan.empty:
+        filtered_kegiatan = df_kegiatan[df_kegiatan["kegiatan"] == selected_kegiatan]
+
+    sub_opts = []
+    if not filtered_kegiatan.empty and "kegiatan_id" in filtered_kegiatan.columns:
+        sub_opts = filtered_kegiatan["kegiatan_id"].dropna().tolist()
 
     with st.form("form_transaksi"):
         col1, col2 = st.columns(2)
         with col1:
             tgl = st.date_input("Tanggal", value=date.today())
-            kegiatan = st.selectbox(
+            subkegiatan = st.selectbox(
                 "Sub Kegiatan",
-                options=kegiatan_opts if kegiatan_opts else ["-"],
-                format_func=lambda x: get_subkegiatan_label(x, df_kegiatan)
+                options=sub_opts if sub_opts else ["-"],
+                format_func=lambda x: get_subkegiatan_label(x, filtered_kegiatan)
             )
             rekening = st.selectbox(
                 "Kode Rekening",
@@ -185,8 +197,8 @@ elif menu == "Transaksi":
             uraian = st.text_area("Uraian", height=100)
 
         if st.form_submit_button("Simpan Transaksi", type="primary"):
-            if not nomor_bukti or nilai <= 0 or kegiatan == "-":
-                st.error("Nomor bukti, nilai positif, dan sub kegiatan wajib diisi.")
+            if not nomor_bukti or nilai <= 0 or subkegiatan == "-" or selected_kegiatan == "-":
+                st.error("Kegiatan, Sub Kegiatan, nomor bukti, dan nilai positif wajib diisi.")
             else:
                 st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {nomor_bukti}")
                 st.warning("Fungsi tulis ke Google Sheets belum diaktifkan. Saat ini hanya baca.")
