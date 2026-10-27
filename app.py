@@ -128,9 +128,14 @@ if menu == "Dashboard":
         total_pagu = pd.to_numeric(df_kegiatan["pagu_awal"], errors="coerce").fillna(0).sum()
 
     total_realisasi = 0
-    if not df_transaksi.empty and "nilai" in df_transaksi.columns:
-        mask = df_transaksi["status"].astype(str).str.upper().isin(["TERCATAT", "DIVERIFIKASI"])
-        total_realisasi = pd.to_numeric(df_transaksi.loc[mask, "nilai"], errors="coerce").fillna(0).sum()
+    # Coba baca dari kolom NOMINAL atau nilai
+    nominal_col = None
+    for col in ["NOMINAL", "nilai", "Nominal"]:
+        if col in df_transaksi.columns:
+            nominal_col = col
+            break
+    if nominal_col and not df_transaksi.empty:
+        total_realisasi = pd.to_numeric(df_transaksi[nominal_col], errors="coerce").fillna(0).sum()
 
     sisa = total_pagu - total_realisasi
     persen = (total_realisasi / total_pagu * 100) if total_pagu else 0
@@ -180,27 +185,29 @@ elif menu == "Transaksi":
     with st.form("form_transaksi"):
         col1, col2 = st.columns(2)
         with col1:
-            tgl = st.date_input("Tanggal", value=date.today())
+            tgl = st.date_input("Tanggal Pengajuan", value=date.today())
             subkegiatan = st.selectbox(
                 "Sub Kegiatan",
                 options=sub_opts if sub_opts else ["-"],
                 format_func=lambda x: get_subkegiatan_label(x, filtered_kegiatan)
             )
             rekening = st.selectbox(
-                "Kode Rekening",
+                "Kode Rekening Belanja",
                 options=rekening_opts if rekening_opts else ["-"],
                 format_func=lambda x: get_rekening_label(x, df_rekening)
             )
+            jenis = st.selectbox("Jenis Transaksi", ["UP", "GU", "LS"])
         with col2:
-            nilai = st.number_input("Nilai (Rp)", min_value=0, step=1000)
-            nomor_bukti = st.text_input("Nomor Bukti")
+            nominal = st.number_input("Nominal (Rp)", min_value=0, step=1000)
             uraian = st.text_area("Uraian", height=100)
+            bukti = st.text_input("Bukti Dukung SPJ (tautan / nomor)")
 
         if st.form_submit_button("Simpan Transaksi", type="primary"):
-            if not nomor_bukti or nilai <= 0 or subkegiatan == "-" or selected_kegiatan == "-":
-                st.error("Kegiatan, Sub Kegiatan, nomor bukti, dan nilai positif wajib diisi.")
+            if nominal <= 0 or subkegiatan == "-" or selected_kegiatan == "-" or rekening == "-":
+                st.error("Kegiatan, Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {nomor_bukti}")
+                st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {format_rupiah(nominal)}")
+                st.info(f"Jenis: {jenis} | Sub Kegiatan: {get_subkegiatan_label(subkegiatan, filtered_kegiatan)}")
                 st.warning("Fungsi tulis ke Google Sheets belum diaktifkan. Saat ini hanya baca.")
 
     st.divider()
