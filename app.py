@@ -34,7 +34,7 @@ def load_sheet(worksheet_name: str) -> pd.DataFrame:
     """Baca worksheet. Kembalikan DataFrame kosong jika gagal."""
     try:
         conn = get_conn()
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=30)
         if df is None or df.empty:
             return pd.DataFrame()
         return df
@@ -90,34 +90,23 @@ def send_telegram(message: str) -> bool:
     except Exception:
         return False
 
-def check_login(nip: str, password: str) -> bool:
-    """Cek NIP + password dari secrets."""
+def check_login(username: str, password: str) -> bool:
+    """Cek username + password dari secrets."""
     try:
         if "users" not in st.secrets:
             return False
-        return st.secrets["users"].get(nip) == password
+        return st.secrets["users"].get(username) == password
     except Exception:
         return False
 
-def find_nip_column(df: pd.DataFrame) -> str | None:
-    """Cari nama kolom NIP (case-insensitive)."""
+def find_username_column(df: pd.DataFrame) -> str | None:
+    """Cari nama kolom user_name (case-insensitive)."""
     if df is None or df.empty:
         return None
     for col in df.columns:
-        if str(col).strip().lower() == "nip":
+        if str(col).strip().lower() in ("user_name", "username"):
             return col
     return None
-
-def normalize_nip(value) -> str:
-    """Normalisasi NIP ke string tanpa .0 atau notasi ilmiah."""
-    if pd.isna(value):
-        return ""
-    s = str(value).strip()
-    # Hapus .0 jika angka
-    if s.endswith(".0"):
-        s = s[:-2]
-    # Hilangkan spasi
-    return s.replace(" ", "")
 
 # ===================== HELPER =====================
 def format_rupiah(n):
@@ -189,39 +178,26 @@ if not st.session_state.logged_in:
     st.title("Login SIMKEU 2027")
     st.caption("Kecamatan Candisari")
 
-    # Debug info
-    with st.expander("Debug (hapus nanti)"):
-        st.write("Kolom di sheet PENGGUNA:")
-        if df_pengguna.empty:
-            st.warning("Sheet PENGGUNA kosong atau gagal dibaca.")
-        else:
-            st.code(str(list(df_pengguna.columns)))
-            nip_col = find_nip_column(df_pengguna)
-            st.write(f"Kolom NIP terdeteksi: {nip_col}")
-            if nip_col:
-                st.write("Nilai NIP di sheet (normalisasi):")
-                nips = df_pengguna[nip_col].apply(normalize_nip).tolist()
-                st.code(str(nips))
-
     with st.form("login_form"):
-        nip = st.text_input("NIP")
+        username = st.text_input("User Name")
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Masuk", type="primary"):
-            if check_login(nip.strip(), password):
-                nip_col = find_nip_column(df_pengguna)
-                if not df_pengguna.empty and nip_col:
-                    input_nip = normalize_nip(nip)
-                    user_row = df_pengguna[df_pengguna[nip_col].apply(normalize_nip) == input_nip]
+            if check_login(username.strip().lower(), password):
+                uname_col = find_username_column(df_pengguna)
+                if not df_pengguna.empty and uname_col:
+                    user_row = df_pengguna[
+                        df_pengguna[uname_col].astype(str).str.strip().str.lower() == username.strip().lower()
+                    ]
                     if not user_row.empty:
                         st.session_state.current_user = user_row.iloc[0].to_dict()
                         st.session_state.logged_in = True
                         st.rerun()
                     else:
-                        st.error("NIP tidak ditemukan di sheet PENGGUNA.")
+                        st.error("User Name tidak ditemukan di sheet PENGGUNA.")
                 else:
-                    st.error("Sheet PENGGUNA tidak memiliki kolom NIP atau kosong.")
+                    st.error("Sheet PENGGUNA tidak memiliki kolom user_name atau kosong.")
             else:
-                st.error("NIP atau password salah.")
+                st.error("User Name atau password salah.")
     st.stop()
 
 current_user = st.session_state.current_user
@@ -233,8 +209,8 @@ with st.sidebar:
     st.divider()
     st.markdown(f"**{current_user.get('nama', '-')}**")
     st.caption(str(current_user.get("peran", "")).replace("_", " "))
-    nip_val = current_user.get("nip") or current_user.get("NIP") or "-"
-    st.caption(f"NIP: {nip_val}")
+    uname = current_user.get("user_name") or current_user.get("username") or "-"
+    st.caption(f"User: {uname}")
     st.divider()
     menu = st.radio(
         "Menu",
@@ -304,8 +280,8 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                nip_val = current_user.get("nip") or current_user.get("NIP") or ""
-                pptk = f"{current_user.get('nama', '')} ({nip_val})"
+                uname = current_user.get("user_name") or current_user.get("username") or ""
+                pptk = f"{current_user.get('nama', '')} ({uname})"
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_full(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
