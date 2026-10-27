@@ -34,7 +34,7 @@ def load_sheet(worksheet_name: str) -> pd.DataFrame:
     """Baca worksheet. Kembalikan DataFrame kosong jika gagal."""
     try:
         conn = get_conn()
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=30)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=0)
         if df is None or df.empty:
             return pd.DataFrame()
         return df
@@ -101,6 +101,8 @@ def check_login(nip: str, password: str) -> bool:
 
 def find_nip_column(df: pd.DataFrame) -> str | None:
     """Cari nama kolom NIP (case-insensitive)."""
+    if df is None or df.empty:
+        return None
     for col in df.columns:
         if str(col).strip().lower() == "nip":
             return col
@@ -175,6 +177,17 @@ if "logged_in" not in st.session_state:
 if not st.session_state.logged_in:
     st.title("Login SIMKEU 2027")
     st.caption("Kecamatan Candisari")
+
+    # Debug info
+    with st.expander("Debug (hapus nanti)"):
+        st.write("Kolom di sheet PENGGUNA:")
+        if df_pengguna.empty:
+            st.warning("Sheet PENGGUNA kosong atau gagal dibaca.")
+        else:
+            st.code(str(list(df_pengguna.columns)))
+            nip_col = find_nip_column(df_pengguna)
+            st.write(f"Kolom NIP terdeteksi: {nip_col}")
+
     with st.form("login_form"):
         nip = st.text_input("NIP")
         password = st.text_input("Password", type="password")
@@ -191,8 +204,6 @@ if not st.session_state.logged_in:
                         st.error("NIP tidak ditemukan di sheet PENGGUNA.")
                 else:
                     st.error("Sheet PENGGUNA tidak memiliki kolom NIP atau kosong.")
-                    if not df_pengguna.empty:
-                        st.caption(f"Kolom yang terbaca: {list(df_pengguna.columns)}")
             else:
                 st.error("NIP atau password salah.")
     st.stop()
@@ -206,7 +217,6 @@ with st.sidebar:
     st.divider()
     st.markdown(f"**{current_user.get('nama', '-')}**")
     st.caption(str(current_user.get("peran", "")).replace("_", " "))
-    # Ambil NIP dari dict (bisa beda kapital)
     nip_val = current_user.get("nip") or current_user.get("NIP") or "-"
     st.caption(f"NIP: {nip_val}")
     st.divider()
