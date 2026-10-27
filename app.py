@@ -128,7 +128,6 @@ if menu == "Dashboard":
         total_pagu = pd.to_numeric(df_kegiatan["pagu_awal"], errors="coerce").fillna(0).sum()
 
     total_realisasi = 0
-    # Coba baca dari kolom NOMINAL atau nilai
     nominal_col = None
     for col in ["NOMINAL", "nilai", "Nominal"]:
         if col in df_transaksi.columns:
@@ -166,21 +165,9 @@ elif menu == "Transaksi":
     if not df_rekening.empty and "kode_rekening" in df_rekening.columns:
         rekening_opts = df_rekening["kode_rekening"].dropna().tolist()
 
-    # Cascading: pilih Kegiatan dulu, lalu Sub Kegiatan yang sesuai
-    kegiatan_list = []
-    if not df_kegiatan.empty and "kegiatan" in df_kegiatan.columns:
-        kegiatan_list = sorted(df_kegiatan["kegiatan"].dropna().unique().tolist())
-
-    selected_kegiatan = st.selectbox("Kegiatan", options=["-"] + kegiatan_list if kegiatan_list else ["-"])
-
-    # Filter sub kegiatan berdasarkan kegiatan yang dipilih
-    filtered_kegiatan = df_kegiatan
-    if selected_kegiatan != "-" and not df_kegiatan.empty:
-        filtered_kegiatan = df_kegiatan[df_kegiatan["kegiatan"] == selected_kegiatan]
-
     sub_opts = []
-    if not filtered_kegiatan.empty and "kegiatan_id" in filtered_kegiatan.columns:
-        sub_opts = filtered_kegiatan["kegiatan_id"].dropna().tolist()
+    if not df_kegiatan.empty and "kegiatan_id" in df_kegiatan.columns:
+        sub_opts = df_kegiatan["kegiatan_id"].dropna().tolist()
 
     with st.form("form_transaksi"):
         col1, col2 = st.columns(2)
@@ -189,7 +176,7 @@ elif menu == "Transaksi":
             subkegiatan = st.selectbox(
                 "Sub Kegiatan",
                 options=sub_opts if sub_opts else ["-"],
-                format_func=lambda x: get_subkegiatan_label(x, filtered_kegiatan)
+                format_func=lambda x: get_subkegiatan_label(x, df_kegiatan)
             )
             rekening = st.selectbox(
                 "Kode Rekening Belanja",
@@ -203,11 +190,11 @@ elif menu == "Transaksi":
             bukti = st.text_input("Bukti Dukung SPJ (tautan / nomor)")
 
         if st.form_submit_button("Simpan Transaksi", type="primary"):
-            if nominal <= 0 or subkegiatan == "-" or selected_kegiatan == "-" or rekening == "-":
-                st.error("Kegiatan, Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
+            if nominal <= 0 or subkegiatan == "-" or rekening == "-":
+                st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
                 st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {format_rupiah(nominal)}")
-                st.info(f"Jenis: {jenis} | Sub Kegiatan: {get_subkegiatan_label(subkegiatan, filtered_kegiatan)}")
+                st.info(f"Jenis: {jenis} | Sub Kegiatan: {get_subkegiatan_label(subkegiatan, df_kegiatan)}")
                 st.warning("Fungsi tulis ke Google Sheets belum diaktifkan. Saat ini hanya baca.")
 
     st.divider()
