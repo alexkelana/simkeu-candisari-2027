@@ -37,8 +37,6 @@ def load_sheet(worksheet_name: str) -> pd.DataFrame:
         df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=30)
         if df is None or df.empty:
             return pd.DataFrame()
-        # Normalisasi nama kolom: strip spasi + lowercase
-        df.columns = [str(c).strip().lower() for c in df.columns]
         return df
     except Exception as e:
         st.error(f"Gagal membaca sheet '{worksheet_name}': {e}")
@@ -100,6 +98,13 @@ def check_login(nip: str, password: str) -> bool:
         return st.secrets["users"].get(nip) == password
     except Exception:
         return False
+
+def find_nip_column(df: pd.DataFrame) -> str | None:
+    """Cari nama kolom NIP (case-insensitive)."""
+    for col in df.columns:
+        if str(col).strip().lower() == "nip":
+            return col
+    return None
 
 # ===================== HELPER =====================
 def format_rupiah(n):
@@ -175,9 +180,9 @@ if not st.session_state.logged_in:
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Masuk", type="primary"):
             if check_login(nip.strip(), password):
-                # Cari kolom nip (sudah dinormalisasi ke lowercase)
-                if not df_pengguna.empty and "nip" in df_pengguna.columns:
-                    user_row = df_pengguna[df_pengguna["nip"].astype(str).str.strip() == nip.strip()]
+                nip_col = find_nip_column(df_pengguna)
+                if not df_pengguna.empty and nip_col:
+                    user_row = df_pengguna[df_pengguna[nip_col].astype(str).str.strip() == nip.strip()]
                     if not user_row.empty:
                         st.session_state.current_user = user_row.iloc[0].to_dict()
                         st.session_state.logged_in = True
@@ -186,7 +191,6 @@ if not st.session_state.logged_in:
                         st.error("NIP tidak ditemukan di sheet PENGGUNA.")
                 else:
                     st.error("Sheet PENGGUNA tidak memiliki kolom NIP atau kosong.")
-                    # Debug: tampilkan kolom yang terbaca
                     if not df_pengguna.empty:
                         st.caption(f"Kolom yang terbaca: {list(df_pengguna.columns)}")
             else:
@@ -202,7 +206,9 @@ with st.sidebar:
     st.divider()
     st.markdown(f"**{current_user.get('nama', '-')}**")
     st.caption(str(current_user.get("peran", "")).replace("_", " "))
-    st.caption(f"NIP: {current_user.get('nip', '-')}")
+    # Ambil NIP dari dict (bisa beda kapital)
+    nip_val = current_user.get("nip") or current_user.get("NIP") or "-"
+    st.caption(f"NIP: {nip_val}")
     st.divider()
     menu = st.radio(
         "Menu",
@@ -272,7 +278,8 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                pptk = f"{current_user.get('nama', '')} ({current_user.get('nip', '')})"
+                nip_val = current_user.get("nip") or current_user.get("NIP") or ""
+                pptk = f"{current_user.get('nama', '')} ({nip_val})"
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_full(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
