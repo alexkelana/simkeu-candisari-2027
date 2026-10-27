@@ -119,13 +119,6 @@ def format_rupiah(n):
 def is_manager(peran: str) -> bool:
     return str(peran).upper() in ("ADMIN", "KASUBAG_PEK")
 
-def truncate(text: str, max_len: int = 45) -> str:
-    """Potong teks panjang agar cocok di layar kecil."""
-    text = str(text)
-    if len(text) <= max_len:
-        return text
-    return text[:max_len - 3] + "..."
-
 def get_subkegiatan_full(subkode: str, df: pd.DataFrame) -> str:
     """Label lengkap: kode - nama."""
     if df.empty or subkode == "-":
@@ -138,11 +131,6 @@ def get_subkegiatan_full(subkode: str, df: pd.DataFrame) -> str:
         return f"{subkode} - {nama}"
     return str(subkode)
 
-def get_subkegiatan_short(subkode: str, df: pd.DataFrame) -> str:
-    """Label pendek untuk dropdown."""
-    full = get_subkegiatan_full(subkode, df)
-    return truncate(full, 50)
-
 def get_rekening_full(kode: str, df: pd.DataFrame) -> str:
     """Label lengkap: kode — uraian."""
     if df.empty or kode == "-":
@@ -154,11 +142,6 @@ def get_rekening_full(kode: str, df: pd.DataFrame) -> str:
     if uraian:
         return f"{kode} — {uraian}"
     return str(kode)
-
-def get_rekening_short(kode: str, df: pd.DataFrame) -> str:
-    """Label pendek untuk dropdown."""
-    full = get_rekening_full(kode, df)
-    return truncate(full, 50)
 
 # ===================== LOAD DATA =====================
 with st.spinner("Memuat data dari Google Sheets..."):
@@ -257,18 +240,14 @@ if menu == "Transaksi":
         subkegiatan = st.selectbox(
             "Sub Kegiatan",
             options=sub_opts if sub_opts else ["-"],
-            format_func=lambda x: get_subkegiatan_short(x, df_kegiatan)
+            format_func=lambda x: get_subkegiatan_full(x, df_kegiatan)
         )
-        if subkegiatan != "-":
-            st.caption(get_subkegiatan_full(subkegiatan, df_kegiatan))
 
         rekening = st.selectbox(
             "Kode Rekening Belanja",
             options=rekening_opts if rekening_opts else ["-"],
-            format_func=lambda x: get_rekening_short(x, df_rekening)
+            format_func=lambda x: get_rekening_full(x, df_rekening)
         )
-        if rekening != "-":
-            st.caption(get_rekening_full(rekening, df_rekening))
 
         pengelompokan = st.text_input("Pengelompokan Belanja (#)")
         jenis = st.selectbox("Jenis Transaksi", ["UP/GU", "LS"])
