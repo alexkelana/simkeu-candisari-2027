@@ -90,12 +90,12 @@ def send_telegram(message: str) -> bool:
     except Exception:
         return False
 
-def check_login(email: str, password: str) -> bool:
-    """Cek email + password dari secrets."""
+def check_login(nip: str, password: str) -> bool:
+    """Cek NIP + password dari secrets."""
     try:
         if "users" not in st.secrets:
             return False
-        return st.secrets["users"].get(email) == password
+        return st.secrets["users"].get(nip) == password
     except Exception:
         return False
 
@@ -169,22 +169,22 @@ if not st.session_state.logged_in:
     st.title("Login SIMKEU 2027")
     st.caption("Kecamatan Candisari")
     with st.form("login_form"):
-        email = st.text_input("Email")
+        nip = st.text_input("NIP")
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Masuk", type="primary"):
-            if check_login(email.strip(), password):
-                if not df_pengguna.empty:
-                    user_row = df_pengguna[df_pengguna["email"].astype(str).str.lower() == email.strip().lower()]
+            if check_login(nip.strip(), password):
+                if not df_pengguna.empty and "nip" in df_pengguna.columns:
+                    user_row = df_pengguna[df_pengguna["nip"].astype(str).str.strip() == nip.strip()]
                     if not user_row.empty:
                         st.session_state.current_user = user_row.iloc[0].to_dict()
                         st.session_state.logged_in = True
                         st.rerun()
                     else:
-                        st.error("Email tidak ditemukan di sheet PENGGUNA.")
+                        st.error("NIP tidak ditemukan di sheet PENGGUNA.")
                 else:
-                    st.error("Sheet PENGGUNA kosong.")
+                    st.error("Sheet PENGGUNA tidak memiliki kolom NIP atau kosong.")
             else:
-                st.error("Email atau password salah.")
+                st.error("NIP atau password salah.")
     st.stop()
 
 current_user = st.session_state.current_user
@@ -196,7 +196,7 @@ with st.sidebar:
     st.divider()
     st.markdown(f"**{current_user.get('nama', '-')}**")
     st.caption(str(current_user.get("peran", "")).replace("_", " "))
-    st.caption(current_user.get("email", ""))
+    st.caption(f"NIP: {current_user.get('nip', '-')}")
     st.divider()
     menu = st.radio(
         "Menu",
@@ -238,7 +238,6 @@ if menu == "Transaksi":
         sub_opts = df_kegiatan["subkegiatan"].dropna().tolist()
 
     with st.form("form_transaksi"):
-        # Di layar kecil, form jadi 1 kolom otomatis
         tgl = st.date_input("Tanggal Pengajuan", value=date.today())
 
         subkegiatan = st.selectbox(
@@ -267,7 +266,7 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                pptk = f"{current_user.get('nama', '')} ({current_user.get('email', '')})"
+                pptk = f"{current_user.get('nama', '')} ({current_user.get('nip', '')})"
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_full(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
