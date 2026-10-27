@@ -53,6 +53,21 @@ def format_rupiah(n):
 def is_manager(peran: str) -> bool:
     return str(peran).upper() in ("ADMIN", "KASUBAG_PEK")
 
+def get_subkegiatan_label(kegiatan_id: str, df: pd.DataFrame) -> str:
+    """Buat label yang lebih jelas untuk dropdown subkegiatan."""
+    if df.empty or kegiatan_id == "-":
+        return kegiatan_id
+    row = df[df["kegiatan_id"] == kegiatan_id]
+    if row.empty:
+        return kegiatan_id
+    r = row.iloc[0]
+    nama = r.get("nama_kegiatan") or r.get("subkegiatan") or kegiatan_id
+    sub = r.get("subkegiatan", "")
+    kegiatan = r.get("kegiatan", "")
+    if sub and str(sub) != str(nama):
+        return f"{nama} ({sub})"
+    return str(nama)
+
 # ===================== LOAD DATA =====================
 with st.spinner("Memuat data dari Google Sheets..."):
     df_pengguna = load_sheet("PENGGUNA")
@@ -63,7 +78,6 @@ with st.spinner("Memuat data dari Google Sheets..."):
     df_perubahan = load_sheet("PERUBAHAN_PAGU")
 
 # ===================== USER (sementara ambil baris pertama aktif) =====================
-# Nanti diganti dengan login / Session.getActiveUser equivalent
 current_user = None
 if not df_pengguna.empty:
     active = df_pengguna[df_pengguna["aktif"].astype(str).str.upper() == "TRUE"]
@@ -98,7 +112,6 @@ with st.sidebar:
 if menu == "Dashboard":
     st.header("Dashboard")
 
-    # Hitung sederhana dari data yang terbaca
     total_pagu = 0
     if not df_kegiatan.empty and "pagu_awal" in df_kegiatan.columns:
         total_pagu = pd.to_numeric(df_kegiatan["pagu_awal"], errors="coerce").fillna(0).sum()
@@ -112,16 +125,16 @@ if menu == "Dashboard":
     persen = (total_realisasi / total_pagu * 100) if total_pagu else 0
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Jumlah Kegiatan", len(df_kegiatan))
+    c1.metric("Jumlah Sub Kegiatan", len(df_kegiatan))
     c2.metric("Total Pagu", format_rupiah(total_pagu))
     c3.metric("Realisasi", format_rupiah(total_realisasi))
     c4.metric("Sisa Pagu", format_rupiah(sisa), delta=f"{persen:.1f}% terpakai")
 
-    st.subheader("Kegiatan")
+    st.subheader("Sub Kegiatan")
     if not df_kegiatan.empty:
         st.dataframe(df_kegiatan, use_container_width=True, hide_index=True)
     else:
-        st.info("Belum ada data kegiatan.")
+        st.info("Belum ada data sub kegiatan.")
 
     st.subheader("Transaksi Terbaru")
     if not df_transaksi.empty:
@@ -133,7 +146,6 @@ if menu == "Dashboard":
 elif menu == "Transaksi":
     st.header("Input Transaksi")
 
-    # Dropdown dari data nyata
     kegiatan_opts = []
     if not df_kegiatan.empty and "kegiatan_id" in df_kegiatan.columns:
         kegiatan_opts = df_kegiatan["kegiatan_id"].dropna().tolist()
@@ -146,7 +158,11 @@ elif menu == "Transaksi":
         col1, col2 = st.columns(2)
         with col1:
             tgl = st.date_input("Tanggal", value=date.today())
-            kegiatan = st.selectbox("Kegiatan", options=kegiatan_opts if kegiatan_opts else ["-"])
+            kegiatan = st.selectbox(
+                "Sub Kegiatan",
+                options=kegiatan_opts if kegiatan_opts else ["-"],
+                format_func=lambda x: get_subkegiatan_label(x, df_kegiatan)
+            )
             rekening = st.selectbox("Kode Rekening", options=rekening_opts if rekening_opts else ["-"])
         with col2:
             nilai = st.number_input("Nilai (Rp)", min_value=0, step=1000)
@@ -155,9 +171,8 @@ elif menu == "Transaksi":
 
         if st.form_submit_button("Simpan Transaksi", type="primary"):
             if not nomor_bukti or nilai <= 0 or kegiatan == "-":
-                st.error("Nomor bukti, nilai positif, dan kegiatan wajib diisi.")
+                st.error("Nomor bukti, nilai positif, dan sub kegiatan wajib diisi.")
             else:
-                # TODO: tulis ke sheet TRANSAKSI via conn.update atau append
                 st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {nomor_bukti}")
                 st.warning("Fungsi tulis ke Google Sheets belum diaktifkan. Saat ini hanya baca.")
 
@@ -182,7 +197,7 @@ elif menu == "Perubahan Pagu":
 # ===================== MASTER DATA =====================
 elif menu == "Master Data":
     st.header("Master Data")
-    tab1, tab2, tab3, tab4 = st.tabs(["Wilayah", "Kegiatan", "Rekening", "Pengguna"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Wilayah", "Sub Kegiatan", "Rekening", "Pengguna"])
     with tab1:
         st.dataframe(df_wilayah if not df_wilayah.empty else pd.DataFrame(), use_container_width=True, hide_index=True)
     with tab2:
