@@ -4,7 +4,7 @@ SIMKEU Kecamatan Candisari 2027 — Streamlit (terhubung Google Sheets)
 Persiapan:
 1. Buat service account di Google Cloud, unduh JSON key.
 2. Share spreadsheet "DATABASE SIMKEU KECAMATAN CANDISARI 2027"
-   ke email service account (minimal Viewer untuk baca).
+   ke email service account (minimal Editor untuk bisa tulis).
 3. Buat file .streamlit/secrets.toml (lihat secrets.toml.example).
 4. Jalankan: streamlit run app.py
 """
@@ -41,6 +41,35 @@ def load_sheet(worksheet_name: str) -> pd.DataFrame:
         st.error(f"Gagal membaca sheet '{worksheet_name}': {e}")
         st.info("Pastikan service account sudah di-share ke spreadsheet dan secrets.toml sudah benar.")
         return pd.DataFrame()
+
+def append_transaksi(new_data: dict):
+    """Tambahkan baris baru ke sheet TRANSAKSI."""
+    try:
+        conn = get_conn()
+        df = load_sheet("TRANSAKSI")
+        if df.empty:
+            # Buat header jika sheet kosong
+            df = pd.DataFrame(columns=[
+                "NO", "SUB KEGIATAN", "KODE REKENING BELANJA",
+                "PENGELOMPOKAN BELANJA (#)", "URAIAN",
+                "JENIS TRANSAKSI (UP/GU/LS)", "NOMINAL",
+                "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ"
+            ])
+        # Hitung nomor berikutnya
+        next_no = 1
+        if not df.empty and "NO" in df.columns:
+            nums = pd.to_numeric(df["NO"], errors="coerce").dropna()
+            if not nums.empty:
+                next_no = int(nums.max()) + 1
+
+        new_data["NO"] = next_no
+        new_row = pd.DataFrame([new_data])
+        updated = pd.concat([df, new_row], ignore_index=True)
+
+        conn.update(spreadsheet=SPREADSHEET_URL, worksheet="TRANSAKSI", data=updated)
+        return True, next_no
+    except Exception as e:
+        return False, str(e)
 
 # ===================== HELPER =====================
 def format_rupiah(n):
@@ -156,9 +185,25 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                st.success(f"Transaksi siap disimpan (belum diimplementasi tulis): {format_rupiah(nominal)}")
-                st.info(f"Jenis: {jenis} | Sub Kegiatan: {get_subkegiatan_label(subkegiatan, df_kegiatan)}")
-                st.warning("Fungsi tulis ke Google Sheets belum diaktifkan. Saat ini hanya baca.")
+                # Siapkan data sesuai header sheet
+                new_data = {
+                    "SUB KEGIATAN": get_subkegiatan_label(subkegiatan, df_kegiatan),
+                    "KODE REKENING BELANJA": rekening,
+                    "PENGELOMPOKAN BELANJA (#)": pengelompokan or "",
+                    "URAIAN": uraian or "",
+                    "JENIS TRANSAKSI (UP/GU/LS)": jenis,
+                    "NOMINAL": nominal,
+                    "TANGGAL PENGAJUAN": tgl.strftime("%d/%m/%Y"),
+                    "BUKTI DUKUNG SPJ": bukti or "",
+                }
+                success, result = append_transaksi(new_data)
+                if success:
+                    st.success(f"Transaksi berhasil disimpan ke Google Sheets. Nomor: {result}")
+                    st.cache_resource.clear()
+                    st.rerun()
+                else:
+                    st.error(f"Gagal menyimpan: {result}")
+                    st.info("Pastikan service account punya akses Editor ke spreadsheet.")
 
     st.divider()
     st.subheader("Daftar Transaksi")
