@@ -109,7 +109,8 @@ with st.sidebar:
     st.divider()
     menu = st.radio(
         "Menu",
-        ["Dashboard", "Transaksi", "Perubahan Pagu", "Master Data"],
+        ["Transaksi", "Dashboard", "Perubahan Pagu", "Master Data"],
+        index=0,
         label_visibility="collapsed",
     )
     st.divider()
@@ -118,46 +119,8 @@ with st.sidebar:
         st.cache_resource.clear()
         st.rerun()
 
-# ===================== DASHBOARD =====================
-if menu == "Dashboard":
-    st.header("Dashboard")
-
-    total_pagu = 0
-    if not df_kegiatan.empty and "pagu_awal" in df_kegiatan.columns:
-        total_pagu = pd.to_numeric(df_kegiatan["pagu_awal"], errors="coerce").fillna(0).sum()
-
-    total_realisasi = 0
-    nominal_col = None
-    for col in ["NOMINAL", "nilai", "Nominal"]:
-        if col in df_transaksi.columns:
-            nominal_col = col
-            break
-    if nominal_col and not df_transaksi.empty:
-        total_realisasi = pd.to_numeric(df_transaksi[nominal_col], errors="coerce").fillna(0).sum()
-
-    sisa = total_pagu - total_realisasi
-    persen = (total_realisasi / total_pagu * 100) if total_pagu else 0
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Jumlah Sub Kegiatan", len(df_kegiatan))
-    c2.metric("Total Pagu", format_rupiah(total_pagu))
-    c3.metric("Realisasi", format_rupiah(total_realisasi))
-    c4.metric("Sisa Pagu", format_rupiah(sisa), delta=f"{persen:.1f}% terpakai")
-
-    st.subheader("Sub Kegiatan")
-    if not df_kegiatan.empty:
-        st.dataframe(df_kegiatan, use_container_width=True, hide_index=True)
-    else:
-        st.info("Belum ada data sub kegiatan.")
-
-    st.subheader("Transaksi Terbaru")
-    if not df_transaksi.empty:
-        st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
-    else:
-        st.info("Belum ada transaksi.")
-
 # ===================== TRANSAKSI =====================
-elif menu == "Transaksi":
+if menu == "Transaksi":
     st.header("Input Transaksi")
 
     rekening_opts = []
@@ -201,6 +164,44 @@ elif menu == "Transaksi":
     st.subheader("Daftar Transaksi")
     if not df_transaksi.empty:
         st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
+
+# ===================== DASHBOARD =====================
+elif menu == "Dashboard":
+    st.header("Dashboard")
+
+    total_pagu = 0
+    if not df_kegiatan.empty and "pagu_awal" in df_kegiatan.columns:
+        total_pagu = pd.to_numeric(df_kegiatan["pagu_awal"], errors="coerce").fillna(0).sum()
+
+    total_realisasi = 0
+    nominal_col = None
+    for col in ["NOMINAL", "nilai", "Nominal"]:
+        if col in df_transaksi.columns:
+            nominal_col = col
+            break
+    if nominal_col and not df_transaksi.empty:
+        total_realisasi = pd.to_numeric(df_transaksi[nominal_col], errors="coerce").fillna(0).sum()
+
+    sisa = total_pagu - total_realisasi
+    persen = (total_realisasi / total_pagu * 100) if total_pagu else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Jumlah Sub Kegiatan", len(df_kegiatan))
+    c2.metric("Total Pagu", format_rupiah(total_pagu))
+    c3.metric("Realisasi", format_rupiah(total_realisasi))
+    c4.metric("Sisa Pagu", format_rupiah(sisa), delta=f"{persen:.1f}% terpakai")
+
+    st.subheader("Sub Kegiatan")
+    if not df_kegiatan.empty:
+        st.dataframe(df_kegiatan, use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada data sub kegiatan.")
+
+    st.subheader("Transaksi Terbaru")
+    if not df_transaksi.empty:
+        st.dataframe(df_transaksi, use_container_width=True, hide_index=True)
+    else:
+        st.info("Belum ada transaksi.")
 
 # ===================== PERUBAHAN PAGU =====================
 elif menu == "Perubahan Pagu":
