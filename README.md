@@ -12,11 +12,19 @@
 8. Isi semua field di `secrets.toml` dari isi JSON service account.
 9. Tambahkan `.streamlit/secrets.toml` ke `.gitignore`.
 
-## Jalankan
+## Install & Jalankan
+
+Package yang dibutuhkan: `st-gsheets-connection` (bukan streamlit-gsheets).
+
 ```bash
 pip install -r requirements.txt
+# atau langsung:
+# pip install st-gsheets-connection
+
 streamlit run app.py
 ```
+
+Jika muncul error `ModuleNotFoundError: No module named 'streamlit_gsheets'`, pastikan sudah menjalankan `pip install st-gsheets-connection` di environment yang sama.
 
 ## Status saat ini
 - Sudah bisa **membaca** semua sheet utama.
