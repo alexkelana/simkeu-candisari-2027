@@ -34,9 +34,11 @@ def load_sheet(worksheet_name: str) -> pd.DataFrame:
     """Baca worksheet. Kembalikan DataFrame kosong jika gagal."""
     try:
         conn = get_conn()
-        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=60)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=30)
         if df is None or df.empty:
             return pd.DataFrame()
+        # Normalisasi nama kolom: strip spasi + lowercase
+        df.columns = [str(c).strip().lower() for c in df.columns]
         return df
     except Exception as e:
         st.error(f"Gagal membaca sheet '{worksheet_name}': {e}")
@@ -173,6 +175,7 @@ if not st.session_state.logged_in:
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Masuk", type="primary"):
             if check_login(nip.strip(), password):
+                # Cari kolom nip (sudah dinormalisasi ke lowercase)
                 if not df_pengguna.empty and "nip" in df_pengguna.columns:
                     user_row = df_pengguna[df_pengguna["nip"].astype(str).str.strip() == nip.strip()]
                     if not user_row.empty:
@@ -183,6 +186,9 @@ if not st.session_state.logged_in:
                         st.error("NIP tidak ditemukan di sheet PENGGUNA.")
                 else:
                     st.error("Sheet PENGGUNA tidak memiliki kolom NIP atau kosong.")
+                    # Debug: tampilkan kolom yang terbaca
+                    if not df_pengguna.empty:
+                        st.caption(f"Kolom yang terbaca: {list(df_pengguna.columns)}")
             else:
                 st.error("NIP atau password salah.")
     st.stop()
