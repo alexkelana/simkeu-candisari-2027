@@ -53,19 +53,18 @@ def format_rupiah(n):
 def is_manager(peran: str) -> bool:
     return str(peran).upper() in ("ADMIN", "KASUBAG_PEK")
 
-def get_subkegiatan_label(kegiatan_id: str, df: pd.DataFrame) -> str:
-    """Buat label yang lebih jelas untuk dropdown subkegiatan."""
-    if df.empty or kegiatan_id == "-":
-        return kegiatan_id
-    row = df[df["kegiatan_id"] == kegiatan_id]
+def get_subkegiatan_label(subkode: str, df: pd.DataFrame) -> str:
+    """Label dropdown: kode subkegiatan - nama kegiatan."""
+    if df.empty or subkode == "-":
+        return subkode
+    row = df[df["subkegiatan"] == subkode]
     if row.empty:
-        return kegiatan_id
+        return subkode
     r = row.iloc[0]
-    nama = r.get("nama_kegiatan") or r.get("subkegiatan") or kegiatan_id
-    sub = r.get("subkegiatan", "")
-    if sub and str(sub) != str(nama):
-        return f"{nama} ({sub})"
-    return str(nama)
+    nama = r.get("nama_kegiatan", "")
+    if nama:
+        return f"{subkode} - {nama}"
+    return str(subkode)
 
 def get_rekening_label(kode: str, df: pd.DataFrame) -> str:
     """Tampilkan kode rekening + uraian."""
@@ -166,8 +165,8 @@ elif menu == "Transaksi":
         rekening_opts = df_rekening["kode_rekening"].dropna().tolist()
 
     sub_opts = []
-    if not df_kegiatan.empty and "kegiatan_id" in df_kegiatan.columns:
-        sub_opts = df_kegiatan["kegiatan_id"].dropna().tolist()
+    if not df_kegiatan.empty and "subkegiatan" in df_kegiatan.columns:
+        sub_opts = df_kegiatan["subkegiatan"].dropna().tolist()
 
     with st.form("form_transaksi"):
         col1, col2 = st.columns(2)
