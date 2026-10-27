@@ -108,6 +108,17 @@ def find_nip_column(df: pd.DataFrame) -> str | None:
             return col
     return None
 
+def normalize_nip(value) -> str:
+    """Normalisasi NIP ke string tanpa .0 atau notasi ilmiah."""
+    if pd.isna(value):
+        return ""
+    s = str(value).strip()
+    # Hapus .0 jika angka
+    if s.endswith(".0"):
+        s = s[:-2]
+    # Hilangkan spasi
+    return s.replace(" ", "")
+
 # ===================== HELPER =====================
 def format_rupiah(n):
     try:
@@ -187,6 +198,10 @@ if not st.session_state.logged_in:
             st.code(str(list(df_pengguna.columns)))
             nip_col = find_nip_column(df_pengguna)
             st.write(f"Kolom NIP terdeteksi: {nip_col}")
+            if nip_col:
+                st.write("Nilai NIP di sheet (normalisasi):")
+                nips = df_pengguna[nip_col].apply(normalize_nip).tolist()
+                st.code(str(nips))
 
     with st.form("login_form"):
         nip = st.text_input("NIP")
@@ -195,7 +210,8 @@ if not st.session_state.logged_in:
             if check_login(nip.strip(), password):
                 nip_col = find_nip_column(df_pengguna)
                 if not df_pengguna.empty and nip_col:
-                    user_row = df_pengguna[df_pengguna[nip_col].astype(str).str.strip() == nip.strip()]
+                    input_nip = normalize_nip(nip)
+                    user_row = df_pengguna[df_pengguna[nip_col].apply(normalize_nip) == input_nip]
                     if not user_row.empty:
                         st.session_state.current_user = user_row.iloc[0].to_dict()
                         st.session_state.logged_in = True
