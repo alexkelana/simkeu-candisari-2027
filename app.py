@@ -53,7 +53,7 @@ def append_transaksi(new_data: dict):
                 "NO", "SUB KEGIATAN", "KODE REKENING BELANJA",
                 "PENGELOMPOKAN BELANJA (#)", "URAIAN",
                 "JENIS TRANSAKSI (UP/GU/LS)", "NOMINAL",
-                "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ", "DIISI OLEH"
+                "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ", "PPTK"
             ])
         next_no = 1
         if not df.empty and "NO" in df.columns:
@@ -157,7 +157,6 @@ if not st.session_state.logged_in:
         password = st.text_input("Password", type="password")
         if st.form_submit_button("Masuk", type="primary"):
             if check_login(email.strip(), password):
-                # Ambil data pengguna dari sheet
                 if not df_pengguna.empty:
                     user_row = df_pengguna[df_pengguna["email"].astype(str).str.lower() == email.strip().lower()]
                     if not user_row.empty:
@@ -236,7 +235,7 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                diisi_oleh = f"{current_user.get('nama', '')} ({current_user.get('email', '')})"
+                pptk = f"{current_user.get('nama', '')} ({current_user.get('email', '')})"
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_label(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
@@ -246,7 +245,7 @@ if menu == "Transaksi":
                     "NOMINAL": nominal,
                     "TANGGAL PENGAJUAN": tgl.strftime("%d/%m/%Y"),
                     "BUKTI DUKUNG SPJ": bukti or "",
-                    "DIISI OLEH": diisi_oleh,
+                    "PPTK": pptk,
                 }
                 success, result = append_transaksi(new_data)
                 if success:
@@ -255,7 +254,7 @@ if menu == "Transaksi":
                     pesan = (
                         f"📌 <b>Transaksi Baru SIMKEU</b>\n"
                         f"No: {result}\n"
-                        f"Diisi oleh: {diisi_oleh}\n"
+                        f"PPTK: {pptk}\n"
                         f"Sub Kegiatan: {new_data['SUB KEGIATAN']}\n"
                         f"Rekening: {rekening}\n"
                         f"Jenis: {jenis}\n"
