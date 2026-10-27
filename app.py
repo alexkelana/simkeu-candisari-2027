@@ -53,7 +53,7 @@ def append_transaksi(new_data: dict):
                 "NO", "SUB KEGIATAN", "KODE REKENING BELANJA",
                 "PENGELOMPOKAN BELANJA (#)", "URAIAN",
                 "JENIS TRANSAKSI (UP/GU/LS)", "NOMINAL",
-                "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ"
+                "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ", "DIISI OLEH"
             ])
         next_no = 1
         if not df.empty and "NO" in df.columns:
@@ -87,6 +87,15 @@ def send_telegram(message: str) -> bool:
         }
         r = requests.post(url, json=payload, timeout=10)
         return r.status_code == 200
+    except Exception:
+        return False
+
+def check_login(email: str, password: str) -> bool:
+    """Cek email + password dari secrets."""
+    try:
+        if "users" not in st.secrets:
+            return False
+        return st.secrets["users"].get(email) == password
     except Exception:
         return False
 
@@ -135,16 +144,35 @@ with st.spinner("Memuat data dari Google Sheets..."):
     df_transaksi = load_sheet("TRANSAKSI")
     df_perubahan = load_sheet("PERUBAHAN_PAGU")
 
-# ===================== USER (sementara ambil baris pertama aktif) =====================
-current_user = None
-if not df_pengguna.empty:
-    active = df_pengguna[df_pengguna["aktif"].astype(str).str.upper() == "TRUE"]
-    if not active.empty:
-        current_user = active.iloc[0].to_dict()
+# ===================== LOGIN =====================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.current_user = None
 
-if current_user is None:
-    st.error("Tidak ada pengguna aktif ditemukan di sheet PENGGUNA.")
+if not st.session_state.logged_in:
+    st.title("Login SIMKEU 2027")
+    st.caption("Kecamatan Candisari")
+    with st.form("login_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Masuk", type="primary"):
+            if check_login(email.strip(), password):
+                # Ambil data pengguna dari sheet
+                if not df_pengguna.empty:
+                    user_row = df_pengguna[df_pengguna["email"].astype(str).str.lower() == email.strip().lower()]
+                    if not user_row.empty:
+                        st.session_state.current_user = user_row.iloc[0].to_dict()
+                        st.session_state.logged_in = True
+                        st.rerun()
+                    else:
+                        st.error("Email tidak ditemukan di sheet PENGGUNA.")
+                else:
+                    st.error("Sheet PENGGUNA kosong.")
+            else:
+                st.error("Email atau password salah.")
     st.stop()
+
+current_user = st.session_state.current_user
 
 # ===================== SIDEBAR =====================
 with st.sidebar:
@@ -163,6 +191,10 @@ with st.sidebar:
     )
     st.divider()
     st.caption("Terhubung ke Google Sheets")
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.session_state.current_user = None
+        st.rerun()
     if st.button("Refresh data"):
         st.cache_resource.clear()
         st.rerun()
@@ -204,6 +236,7 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
+                diisi_oleh = f"{current_user.get('nama', '')} ({current_user.get('email', '')})"
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_label(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
@@ -213,15 +246,16 @@ if menu == "Transaksi":
                     "NOMINAL": nominal,
                     "TANGGAL PENGAJUAN": tgl.strftime("%d/%m/%Y"),
                     "BUKTI DUKUNG SPJ": bukti or "",
+                    "DIISI OLEH": diisi_oleh,
                 }
                 success, result = append_transaksi(new_data)
                 if success:
                     st.success(f"Transaksi berhasil disimpan ke Google Sheets. Nomor: {result}")
 
-                    # Kirim notifikasi Telegram
                     pesan = (
                         f"📌 <b>Transaksi Baru SIMKEU</b>\n"
                         f"No: {result}\n"
+                        f"Diisi oleh: {diisi_oleh}\n"
                         f"Sub Kegiatan: {new_data['SUB KEGIATAN']}\n"
                         f"Rekening: {rekening}\n"
                         f"Jenis: {jenis}\n"
