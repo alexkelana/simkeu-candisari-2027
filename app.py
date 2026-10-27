@@ -11,6 +11,7 @@ Persiapan:
 
 import streamlit as st
 import pandas as pd
+import requests
 from datetime import date, datetime
 from streamlit_gsheets import GSheetsConnection
 
@@ -48,14 +49,12 @@ def append_transaksi(new_data: dict):
         conn = get_conn()
         df = load_sheet("TRANSAKSI")
         if df.empty:
-            # Buat header jika sheet kosong
             df = pd.DataFrame(columns=[
                 "NO", "SUB KEGIATAN", "KODE REKENING BELANJA",
                 "PENGELOMPOKAN BELANJA (#)", "URAIAN",
                 "JENIS TRANSAKSI (UP/GU/LS)", "NOMINAL",
                 "TANGGAL PENGAJUAN", "BUKTI DUKUNG SPJ"
             ])
-        # Hitung nomor berikutnya
         next_no = 1
         if not df.empty and "NO" in df.columns:
             nums = pd.to_numeric(df["NO"], errors="coerce").dropna()
@@ -70,6 +69,26 @@ def append_transaksi(new_data: dict):
         return True, next_no
     except Exception as e:
         return False, str(e)
+
+def send_telegram(message: str) -> bool:
+    """Kirim notifikasi ke Telegram. Return True jika berhasil."""
+    try:
+        if "telegram" not in st.secrets:
+            return False
+        token = st.secrets["telegram"].get("bot_token")
+        chat_id = st.secrets["telegram"].get("chat_id")
+        if not token or not chat_id:
+            return False
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        r = requests.post(url, json=payload, timeout=10)
+        return r.status_code == 200
+    except Exception:
+        return False
 
 # ===================== HELPER =====================
 def format_rupiah(n):
@@ -185,7 +204,6 @@ if menu == "Transaksi":
             if nominal <= 0 or subkegiatan == "-" or rekening == "-":
                 st.error("Sub Kegiatan, Kode Rekening, dan Nominal wajib diisi dengan benar.")
             else:
-                # Siapkan data sesuai header sheet
                 new_data = {
                     "SUB KEGIATAN": get_subkegiatan_label(subkegiatan, df_kegiatan),
                     "KODE REKENING BELANJA": rekening,
@@ -199,6 +217,23 @@ if menu == "Transaksi":
                 success, result = append_transaksi(new_data)
                 if success:
                     st.success(f"Transaksi berhasil disimpan ke Google Sheets. Nomor: {result}")
+
+                    # Kirim notifikasi Telegram
+                    pesan = (
+                        f"📌 <b>Transaksi Baru SIMKEU</b>\n"
+                        f"No: {result}\n"
+                        f"Sub Kegiatan: {new_data['SUB KEGIATAN']}\n"
+                        f"Rekening: {rekening}\n"
+                        f"Jenis: {jenis}\n"
+                        f"Nominal: {format_rupiah(nominal)}\n"
+                        f"Tanggal: {new_data['TANGGAL PENGAJUAN']}\n"
+                        f"Uraian: {uraian or '-'}"
+                    )
+                    if send_telegram(pesan):
+                        st.info("Notifikasi Telegram terkirim.")
+                    else:
+                        st.warning("Transaksi tersimpan, tapi notifikasi Telegram gagal (cek bot_token & chat_id di Secrets).")
+
                     st.cache_resource.clear()
                     st.rerun()
                 else:
