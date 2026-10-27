@@ -183,7 +183,8 @@ elif menu == "Transaksi":
                 options=rekening_opts if rekening_opts else ["-"],
                 format_func=lambda x: get_rekening_label(x, df_rekening)
             )
-            jenis = st.selectbox("Jenis Transaksi", ["UP", "GU", "LS"])
+            pengelompokan = st.text_input("Pengelompokan Belanja (#)")
+            jenis = st.selectbox("Jenis Transaksi (UP/GU/LS)", ["UP", "GU", "LS"])
         with col2:
             nominal = st.number_input("Nominal (Rp)", min_value=0, step=1000)
             uraian = st.text_area("Uraian", height=100)
