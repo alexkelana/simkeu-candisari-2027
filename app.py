@@ -63,10 +63,21 @@ def get_subkegiatan_label(kegiatan_id: str, df: pd.DataFrame) -> str:
     r = row.iloc[0]
     nama = r.get("nama_kegiatan") or r.get("subkegiatan") or kegiatan_id
     sub = r.get("subkegiatan", "")
-    kegiatan = r.get("kegiatan", "")
     if sub and str(sub) != str(nama):
         return f"{nama} ({sub})"
     return str(nama)
+
+def get_rekening_label(kode: str, df: pd.DataFrame) -> str:
+    """Tampilkan kode rekening + uraian."""
+    if df.empty or kode == "-":
+        return kode
+    row = df[df["kode_rekening"] == kode]
+    if row.empty:
+        return kode
+    uraian = row.iloc[0].get("uraian_rekening", "")
+    if uraian:
+        return f"{kode} — {uraian}"
+    return str(kode)
 
 # ===================== LOAD DATA =====================
 with st.spinner("Memuat data dari Google Sheets..."):
@@ -163,7 +174,11 @@ elif menu == "Transaksi":
                 options=kegiatan_opts if kegiatan_opts else ["-"],
                 format_func=lambda x: get_subkegiatan_label(x, df_kegiatan)
             )
-            rekening = st.selectbox("Kode Rekening", options=rekening_opts if rekening_opts else ["-"])
+            rekening = st.selectbox(
+                "Kode Rekening",
+                options=rekening_opts if rekening_opts else ["-"],
+                format_func=lambda x: get_rekening_label(x, df_rekening)
+            )
         with col2:
             nilai = st.number_input("Nilai (Rp)", min_value=0, step=1000)
             nomor_bukti = st.text_input("Nomor Bukti")
